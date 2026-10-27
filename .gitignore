@@ -1,0 +1,23 @@
+# Flutter / Dart generated outputs
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+coverage/
+**/flutter/ephemeral/
+**/GeneratedPluginRegistrant.java
+# IDE and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+# Local data / secrets
+*.db
+*.db-shm
+*.db-wal
+.env
+*.p8
