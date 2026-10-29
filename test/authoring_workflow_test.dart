@@ -1,9 +1,7 @@
-import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shift_slate/main.dart';
-import 'package:shift_slate/planning.dart';
 import 'package:shift_slate/store.dart';
 
 void main() {
