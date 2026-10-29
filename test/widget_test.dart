@@ -15,10 +15,8 @@ void main() {
     expect(find.byType(material.MaterialApp), findsOneWidget);
     expect(find.byType(material.Scaffold), findsOneWidget);
     expect(find.text('Shift Slate'), findsOneWidget);
-    expect(
-      find.text('Plan volunteer shifts offline. Event setup is coming soon.'),
-      findsOneWidget,
-    );
+    expect(find.text('Add event'), findsOneWidget);
+    expect(find.text('Add volunteer'), findsOneWidget);
   });
 
   testWidgets('renders iOS Cupertino shell', (tester) async {
