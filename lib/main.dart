@@ -353,122 +353,164 @@ class _Editor extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    child: Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 900),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              text('Events'),
-              button('Add event', () => editEvent(context)),
-              for (final event in plan.events) ...[
-                text(event.name),
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    button(
-                      'Edit event ${event.name}',
-                      () => editEvent(context, event),
-                    ),
-                    button(
-                      'Delete event ${event.name}',
-                      () => deleteEvent(event),
-                    ),
-                    button(
-                      'Add shift to ${event.name}',
-                      () => editShift(context, event),
-                    ),
-                  ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final wide = constraints.maxWidth >= 700;
+      final events = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          text('Events'),
+          text(
+            'Coverage: ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).filled)} assigned · ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).missing)} needed',
+          ),
+          button('Add event', () => editEvent(context)),
+          for (final event in plan.events) ...[
+            text(event.name),
+            Wrap(
+              spacing: 8,
+              children: [
+                button(
+                  'Edit event ${event.name}',
+                  () => editEvent(context, event),
                 ),
-                for (final shift in plan.shifts.where(
-                  (s) => s.eventId == event.id,
-                )) ...[
-                  text(
-                    '${displayTime(shift.startUtc, shift.startOffsetMinutes)} – ${displayTime(shift.endUtc, shift.endOffsetMinutes)} · ${shift.requiredHelpers} helpers',
-                  ),
-                  Wrap(
-                    spacing: 8,
-                    children: [
-                      button(
-                        'Edit shift ${shift.id}',
-                        () => editShift(context, event, shift),
-                      ),
-                      button(
-                        'Delete shift ${shift.id}',
-                        () => update(
-                          shifts: plan.shifts
-                              .where((s) => s.id != shift.id)
-                              .toList(),
-                          assignments: plan.assignments
-                              .where((a) => a.shiftId != shift.id)
-                              .toList(),
-                        ),
-                      ),
-                      for (final volunteer in plan.volunteers)
-                        button(
-                          '${plan.assignments.any((a) => a.shiftId == shift.id && a.volunteerId == volunteer.id) ? 'Unassign' : 'Assign'} ${volunteer.name} ${shift.id}',
-                          () {
-                            final assigned = plan.assignments.any(
-                              (a) =>
-                                  a.shiftId == shift.id &&
-                                  a.volunteerId == volunteer.id,
-                            );
-                            update(
-                              assignments: assigned
-                                  ? plan.assignments
-                                        .where(
-                                          (a) =>
-                                              a.shiftId != shift.id ||
-                                              a.volunteerId != volunteer.id,
-                                        )
-                                        .toList()
-                                  : [
-                                      ...plan.assignments,
-                                      Assignment(shift.id, volunteer.id),
-                                    ],
-                            );
-                          },
-                        ),
-                    ],
-                  ),
-                ],
+                button('Delete event ${event.name}', () => deleteEvent(event)),
+                button(
+                  'Add shift to ${event.name}',
+                  () => editShift(context, event),
+                ),
               ],
-              const SizedBox(height: 20),
-              text('Volunteers'),
-              button('Add volunteer', () => editVolunteer(context)),
-              for (final volunteer in plan.volunteers)
-                Wrap(
-                  spacing: 8,
-                  children: [
-                    text(volunteer.name),
-                    button(
-                      'Edit volunteer ${volunteer.name}',
-                      () => editVolunteer(context, volunteer),
+            ),
+            for (final shift in plan.shifts.where(
+              (s) => s.eventId == event.id,
+            )) ...[
+              text(
+                '${displayTime(shift.startUtc, shift.startOffsetMinutes)} – ${displayTime(shift.endUtc, shift.endOffsetMinutes)} · ${shift.requiredHelpers} helpers',
+              ),
+              text(
+                'Coverage ${plan.coverage(shift).filled}/${shift.requiredHelpers} · ${plan.coverage(shift).missing} needed · ${plan.coverage(shift).extra} extra',
+              ),
+              Wrap(
+                spacing: 8,
+                children: [
+                  button(
+                    'Edit shift ${shift.id}',
+                    () => editShift(context, event, shift),
+                  ),
+                  button(
+                    'Delete shift ${shift.id}',
+                    () => update(
+                      shifts: plan.shifts
+                          .where((s) => s.id != shift.id)
+                          .toList(),
+                      assignments: plan.assignments
+                          .where((a) => a.shiftId != shift.id)
+                          .toList(),
                     ),
+                  ),
+                  for (final assignment in plan.assignments.where(
+                    (a) => a.shiftId == shift.id,
+                  ))
                     button(
-                      'Delete volunteer ${volunteer.name}',
+                      '${assignment.attended ? 'Attended' : 'Mark attended'} ${plan.volunteers.firstWhere((v) => v.id == assignment.volunteerId).name} ${shift.id}',
                       () => update(
-                        volunteers: plan.volunteers
-                            .where((v) => v.id != volunteer.id)
-                            .toList(),
-                        assignments: plan.assignments
-                            .where((a) => a.volunteerId != volunteer.id)
-                            .toList(),
+                        assignments: [
+                          for (final a in plan.assignments)
+                            if (a == assignment)
+                              Assignment(
+                                a.shiftId,
+                                a.volunteerId,
+                                attended: !a.attended,
+                              )
+                            else
+                              a,
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              for (final conflict in plan.conflicts)
-                text(
-                  'Schedule conflict: ${plan.volunteers.firstWhere((v) => v.id == conflict.volunteerId).name} has overlapping shifts.',
-                ),
+                  for (final volunteer in plan.volunteers)
+                    button(
+                      '${plan.assignments.any((a) => a.shiftId == shift.id && a.volunteerId == volunteer.id) ? 'Unassign' : 'Assign'} ${volunteer.name} ${shift.id}',
+                      () {
+                        final assigned = plan.assignments.any(
+                          (a) =>
+                              a.shiftId == shift.id &&
+                              a.volunteerId == volunteer.id,
+                        );
+                        update(
+                          assignments: assigned
+                              ? plan.assignments
+                                    .where(
+                                      (a) =>
+                                          a.shiftId != shift.id ||
+                                          a.volunteerId != volunteer.id,
+                                    )
+                                    .toList()
+                              : [
+                                  ...plan.assignments,
+                                  Assignment(shift.id, volunteer.id),
+                                ],
+                        );
+                      },
+                    ),
+                ],
+              ),
             ],
+          ],
+          for (final conflict in plan.conflicts)
+            text(
+              'Schedule conflict: ${plan.volunteers.firstWhere((v) => v.id == conflict.volunteerId).name} has overlapping shifts.',
+            ),
+        ],
+      );
+      final volunteers = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          text('Volunteers'),
+          button('Add volunteer', () => editVolunteer(context)),
+          for (final volunteer in plan.volunteers)
+            Wrap(
+              spacing: 8,
+              children: [
+                text(volunteer.name),
+                button(
+                  'Edit volunteer ${volunteer.name}',
+                  () => editVolunteer(context, volunteer),
+                ),
+                button(
+                  'Delete volunteer ${volunteer.name}',
+                  () => update(
+                    volunteers: plan.volunteers
+                        .where((v) => v.id != volunteer.id)
+                        .toList(),
+                    assignments: plan.assignments
+                        .where((a) => a.volunteerId != volunteer.id)
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      );
+      final body = wide
+          ? Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: events),
+                const SizedBox(width: 24),
+                SizedBox(width: 320, child: volunteers),
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [events, const SizedBox(height: 20), volunteers],
+            );
+      return SingleChildScrollView(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Padding(padding: const EdgeInsets.all(16), child: body),
           ),
         ),
-      ),
-    ),
+      );
+    },
   );
 }
