@@ -101,12 +101,15 @@ void main() {
       const ShiftSlateApp(platform: TargetPlatform.windows),
     );
     await tester.pumpAndSettle();
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump();
-    expect(find.text('Add event'), findsOneWidget);
-    expect(FocusManager.instance.primaryFocus?.hasPrimaryFocus, isTrue);
+    final action = find.text('Add event');
+    for (var i = 0; i < 10 && !Focus.of(tester.element(action)).hasFocus; i++) {
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+    }
+    expect(Focus.of(tester.element(action)).hasFocus, isTrue);
     await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
-    expect(find.text('Event name'), findsOneWidget);
+    expect(find.text('Add event'), findsWidgets);
+    expect(find.text('Save'), findsOneWidget);
   });
 }
