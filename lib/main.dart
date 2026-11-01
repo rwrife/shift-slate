@@ -359,9 +359,12 @@ class _Editor extends StatelessWidget {
       final events = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          text('Events'),
-          text(
-            'Coverage: ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).filled)} assigned · ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).missing)} needed',
+          Semantics(header: true, child: text('Events')),
+          Semantics(
+            liveRegion: true,
+            child: text(
+              'Coverage: ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).filled)} assigned · ${plan.shifts.fold<int>(0, (sum, s) => sum + plan.coverage(s).missing)} needed',
+            ),
           ),
           button('Add event', () => editEvent(context)),
           for (final event in plan.events) ...[
@@ -386,8 +389,11 @@ class _Editor extends StatelessWidget {
               text(
                 '${displayTime(shift.startUtc, shift.startOffsetMinutes)} – ${displayTime(shift.endUtc, shift.endOffsetMinutes)} · ${shift.requiredHelpers} helpers',
               ),
-              text(
-                'Coverage ${plan.coverage(shift).filled}/${shift.requiredHelpers} · ${plan.coverage(shift).missing} needed · ${plan.coverage(shift).extra} extra',
+              Semantics(
+                liveRegion: true,
+                child: text(
+                  'Coverage ${plan.coverage(shift).filled}/${shift.requiredHelpers} · ${plan.coverage(shift).missing} needed · ${plan.coverage(shift).extra} extra',
+                ),
               ),
               Wrap(
                 spacing: 8,
@@ -456,15 +462,18 @@ class _Editor extends StatelessWidget {
             ],
           ],
           for (final conflict in plan.conflicts)
-            text(
-              'Schedule conflict: ${plan.volunteers.firstWhere((v) => v.id == conflict.volunteerId).name} has overlapping shifts.',
+            Semantics(
+              liveRegion: true,
+              child: text(
+                'Schedule conflict: ${plan.volunteers.firstWhere((v) => v.id == conflict.volunteerId).name} has overlapping shifts.',
+              ),
             ),
         ],
       );
       final volunteers = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          text('Volunteers'),
+          Semantics(header: true, child: text('Volunteers')),
           button('Add volunteer', () => editVolunteer(context)),
           for (final volunteer in plan.volunteers)
             Wrap(
