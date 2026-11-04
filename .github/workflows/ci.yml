@@ -47,3 +47,21 @@ jobs:
           flutter --version
           flutter pub get --enforce-lockfile
           flutter build apk --debug
+
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Build unsigned iPhone and iPad simulator app
+        run: |
+          flutter --version
+          flutter pub get --enforce-lockfile
+          flutter build ios --simulator --debug --no-codesign
+          test -d build/ios/iphonesimulator/Runner.app
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build/ios/iphonesimulator/Runner.app/Info.plist | grep -Fx 'com.infinityball.shiftslate'
+          /usr/libexec/PlistBuddy -c 'Print :UIDeviceFamily' build/ios/iphonesimulator/Runner.app/Info.plist | grep -q '2'
