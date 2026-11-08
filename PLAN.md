@@ -17,7 +17,7 @@ Identifier: `com.infinityball.shiftslate` for Android applicationId and iOS bund
 3. Event/volunteer/shift authoring and assignment flow with no automatic volunteer sync.
 4. Coverage dashboard and attendance; adaptive platform UI with goldens/accessibility checks.
 5. Safe CSV roster export and JSON backup/validate-before-replace restore.
-6. Real source icon `AppStore/icon.png` generated with OpenAI Images via spark-media; wire Windows `.ico`, Android and iOS launcher icons. Keep [AppStore/description.txt](AppStore/description.txt) accurate to built features.
+6. Source icon `AppStore/icon.png` generated with OpenAI Images via spark-media; wired Windows `.ico`, Android adaptive/legacy icons and iOS AppIcon. [AppStore/description.txt](AppStore/description.txt) audited against implemented features. Native device icon rendering not yet audited.
 7. `.github/workflows/release.yml`: `v*` or manual dispatch, `windows-latest`, `flutter test` and `flutter build windows --release`, zip portable output and attach to GitHub release. Android debug build in Linux/Docker CI; iOS compile on macOS runner as later gate. TestFlight via four ASC secrets and Play submission later opt-in milestones.
 
 ## Test and release matrix

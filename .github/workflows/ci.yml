@@ -22,6 +22,7 @@ jobs:
         shell: bash
         run: |
           flutter --version
+          python3 tool/check_icons.py
           flutter pub get --enforce-lockfile
           dart format --output=none --set-exit-if-changed lib test
           flutter analyze
