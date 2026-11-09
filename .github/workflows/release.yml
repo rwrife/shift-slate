@@ -1,0 +1,113 @@
+name: Windows release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing vMAJOR.MINOR.PATCH tag to publish
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Verify release tag and source
+        shell: pwsh
+        run: |
+          $tag = $env:RELEASE_TAG
+          if ($tag -cnotmatch '^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$') {
+            throw 'Select an existing vMAJOR.MINOR.PATCH tag (not a branch).'
+          }
+          git show-ref --verify --quiet "refs/tags/$tag"
+          if ($LASTEXITCODE -ne 0) { throw "Tag $tag does not exist." }
+          $tagCommit = git rev-parse "refs/tags/$tag^{commit}"
+          if ($LASTEXITCODE -ne 0 -or $tagCommit -ne (git rev-parse HEAD)) {
+            throw 'Checkout does not match the selected release tag.'
+          }
+          Write-Host "Release $tag at $tagCommit"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Test and build Windows release
+        shell: pwsh
+        run: |
+          flutter --version
+          if ($LASTEXITCODE -ne 0) { throw 'Flutter version check failed.' }
+          flutter pub get --enforce-lockfile
+          if ($LASTEXITCODE -ne 0) { throw 'Locked restore failed.' }
+          dart format --output=none --set-exit-if-changed lib test
+          if ($LASTEXITCODE -ne 0) { throw 'Format check failed.' }
+          flutter analyze
+          if ($LASTEXITCODE -ne 0) { throw 'Analysis failed.' }
+          flutter test
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed.' }
+          flutter build windows --release
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed.' }
+      - name: Package and inspect portable app
+        id: package
+        shell: pwsh
+        run: |
+          $bundle = 'build/windows/x64/runner/Release'
+          if (!(Test-Path "$bundle/shift_slate.exe") -or !(Test-Path "$bundle/data/flutter_assets")) {
+            throw 'Windows executable or Flutter assets missing.'
+          }
+          $zip = Join-Path $env:RUNNER_TEMP "shift-slate-$env:RELEASE_TAG-windows-x64.zip"
+          Compress-Archive -Path "$bundle/*" -DestinationPath $zip -CompressionLevel Optimal
+          Add-Type -AssemblyName System.IO.Compression
+          $archive = [System.IO.Compression.ZipFile]::OpenRead($zip)
+          try {
+            $names = @($archive.Entries | ForEach-Object FullName)
+            if ('shift_slate.exe' -notin $names -or 'flutter_windows.dll' -notin $names -or
+                !($names | Where-Object { $_ -like 'data/flutter_assets/*' })) {
+              throw 'ZIP missing executable, Flutter runtime or assets.'
+            }
+          } finally {
+            $archive.Dispose()
+          }
+          if ((Get-Item $zip).Length -le 0) { throw 'ZIP is empty.' }
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+          "name=$(Split-Path $zip -Leaf)" >> $env:GITHUB_OUTPUT
+      - name: Publish and verify GitHub release
+        shell: pwsh
+        env:
+          ZIP: ${{ steps.package.outputs.zip }}
+          ZIP_NAME: ${{ steps.package.outputs.name }}
+        run: |
+          $tag = $env:RELEASE_TAG
+          gh release view $tag --json assets *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --verify-tag --title "Shift Slate $tag" --generate-notes
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
+          }
+          $release = gh release view $tag --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Release lookup failed.' }
+          if ($release.assets | Where-Object { $_.name -eq $env:ZIP_NAME }) {
+            throw 'Release already has this asset; refusing to overwrite a published build.'
+          }
+          gh release upload $tag $env:ZIP
+          if ($LASTEXITCODE -ne 0) { throw 'Release upload failed.' }
+          $release = gh release view $tag --json assets | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Release verification failed.' }
+          $asset = @($release.assets | Where-Object { $_.name -eq $env:ZIP_NAME })
+          if ($asset.Count -ne 1 -or $asset[0].size -le 0 -or !$asset[0].url) {
+            throw 'Published ZIP URL or size missing.'
+          }
+          Write-Host "Published $($asset[0].url) ($($asset[0].size) bytes)"
