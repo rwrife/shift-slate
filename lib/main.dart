@@ -1,13 +1,19 @@
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
+import 'package:share_plus/share_plus.dart';
 
 import 'package:fluent_ui/fluent_ui.dart' as fluent;
 import 'package:flutter/cupertino.dart' as cupertino;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' as material;
 import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart' show SelectableText;
 import 'package:path_provider/path_provider.dart';
 
 import 'planning.dart';
+import 'roster_csv.dart';
 import 'store.dart';
 
 Future<void> main() async {
@@ -338,6 +344,125 @@ class _Editor extends StatelessWidget {
     );
   }
 
+  Future<void> exportRoster(BuildContext context) async {
+    final csv = rosterCsv(plan);
+    final preview = csv.length > 2000
+        ? '${csv.substring(0, 2000)}\n… preview truncated; full roster exports'
+        : csv;
+    final confirmed = await (apple
+        ? cupertino.showCupertinoDialog<bool>(
+            context: context,
+            builder: (dialog) => cupertino.CupertinoAlertDialog(
+              title: const cupertino.Text('Export roster'),
+              content: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const cupertino.Text(
+                      'Export contains volunteer names and attendance. Private contact notes are excluded. Review before sharing.',
+                    ),
+                    SelectableText(preview),
+                  ],
+                ),
+              ),
+              actions: [
+                cupertino.CupertinoDialogAction(
+                  onPressed: () => Navigator.pop(dialog, false),
+                  child: const cupertino.Text('Cancel'),
+                ),
+                cupertino.CupertinoDialogAction(
+                  onPressed: () => Navigator.pop(dialog, true),
+                  child: const cupertino.Text('Export CSV'),
+                ),
+              ],
+            ),
+          )
+        : windows
+        ? fluent.showDialog<bool>(
+            context: context,
+            builder: (dialog) => fluent.ContentDialog(
+              title: const fluent.Text('Export roster'),
+              content: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const fluent.Text(
+                      'Export contains volunteer names and attendance. Private contact notes are excluded. Review before sharing.',
+                    ),
+                    SelectableText(preview),
+                  ],
+                ),
+              ),
+              actions: [
+                fluent.Button(
+                  onPressed: () => Navigator.pop(dialog, false),
+                  child: const fluent.Text('Cancel'),
+                ),
+                fluent.Button(
+                  onPressed: () => Navigator.pop(dialog, true),
+                  child: const fluent.Text('Export CSV'),
+                ),
+              ],
+            ),
+          )
+        : material.showDialog<bool>(
+            context: context,
+            builder: (dialog) => material.AlertDialog(
+              title: const material.Text('Export roster'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const material.Text(
+                      'Export contains volunteer names and attendance. Private contact notes are excluded. Review before sharing.',
+                    ),
+                    SelectableText(preview),
+                  ],
+                ),
+              ),
+              actions: [
+                material.TextButton(
+                  onPressed: () => Navigator.pop(dialog, false),
+                  child: const material.Text('Cancel'),
+                ),
+                material.TextButton(
+                  onPressed: () => Navigator.pop(dialog, true),
+                  child: const material.Text('Export CSV'),
+                ),
+              ],
+            ),
+          ));
+    if (confirmed != true || !context.mounted) return;
+    final box = context.findRenderObject() as RenderBox?;
+    final origin = box == null
+        ? null
+        : box.localToGlobal(Offset.zero) & box.size;
+    try {
+      if (windows) {
+        final location = await getSaveLocation(
+          suggestedName: 'shift-slate-roster.csv',
+          acceptedTypeGroups: [
+            const XTypeGroup(label: 'CSV', extensions: ['csv']),
+          ],
+        );
+        if (location == null) return;
+        await XFile.fromData(
+          utf8.encode(csv),
+          mimeType: 'text/csv',
+        ).saveTo(location.path);
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile.fromData(utf8.encode(csv), mimeType: 'text/csv')],
+            fileNameOverrides: ['shift-slate-roster.csv'],
+            sharePositionOrigin: origin,
+          ),
+        );
+      }
+    } on Object catch (error) {
+      if (!context.mounted) return;
+      await form(context, 'Export failed', [text('$error')], () {});
+    }
+  }
+
   void deleteEvent(Event event) {
     final removed = plan.shifts
         .where((s) => s.eventId == event.id)
@@ -497,6 +622,7 @@ class _Editor extends StatelessWidget {
                 ),
               ],
             ),
+          button('Export roster', () => exportRoster(context)),
         ],
       );
       final body = wide
