@@ -349,61 +349,65 @@ class _Editor extends StatelessWidget {
     BuildContext context,
     String title,
     String warning,
-  ) async =>
-      (await (apple
-          ? cupertino.showCupertinoDialog<bool>(
-              context: context,
-              builder: (dialog) => cupertino.CupertinoAlertDialog(
-                title: cupertino.Text(title),
-                content: cupertino.Text(warning),
-                actions: [
-                  cupertino.CupertinoDialogAction(
-                    onPressed: () => Navigator.pop(dialog, false),
-                    child: const cupertino.Text('Cancel'),
-                  ),
-                  cupertino.CupertinoDialogAction(
-                    onPressed: () => Navigator.pop(dialog, true),
-                    child: const cupertino.Text('Continue'),
-                  ),
-                ],
-              ),
-            )
-          : windows
-          ? fluent.showDialog<bool>(
-              context: context,
-              builder: (dialog) => fluent.ContentDialog(
-                title: fluent.Text(title),
-                content: fluent.Text(warning),
-                actions: [
-                  fluent.Button(
-                    onPressed: () => Navigator.pop(dialog, false),
-                    child: const fluent.Text('Cancel'),
-                  ),
-                  fluent.Button(
-                    onPressed: () => Navigator.pop(dialog, true),
-                    child: const fluent.Text('Continue'),
-                  ),
-                ],
-              ),
-            )
-          : material.showDialog<bool>(
-              context: context,
-              builder: (dialog) => material.AlertDialog(
-                title: material.Text(title),
-                content: material.Text(warning),
-                actions: [
-                  material.TextButton(
-                    onPressed: () => Navigator.pop(dialog, false),
-                    child: const material.Text('Cancel'),
-                  ),
-                  material.TextButton(
-                    onPressed: () => Navigator.pop(dialog, true),
-                    child: const material.Text('Continue'),
-                  ),
-                ],
-              ),
-            ))) ==
-      true;
+  ) async {
+    bool? confirmed;
+    if (apple) {
+      confirmed = await cupertino.showCupertinoDialog<bool>(
+        context: context,
+        builder: (dialog) => cupertino.CupertinoAlertDialog(
+          title: cupertino.Text(title),
+          content: cupertino.Text(warning),
+          actions: [
+            cupertino.CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const cupertino.Text('Cancel'),
+            ),
+            cupertino.CupertinoDialogAction(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const cupertino.Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    } else if (windows) {
+      confirmed = await fluent.showDialog<bool>(
+        context: context,
+        builder: (dialog) => fluent.ContentDialog(
+          title: fluent.Text(title),
+          content: fluent.Text(warning),
+          actions: [
+            fluent.Button(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const fluent.Text('Cancel'),
+            ),
+            fluent.Button(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const fluent.Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      confirmed = await material.showDialog<bool>(
+        context: context,
+        builder: (dialog) => material.AlertDialog(
+          title: material.Text(title),
+          content: material.Text(warning),
+          actions: [
+            material.TextButton(
+              onPressed: () => Navigator.pop(dialog, false),
+              child: const material.Text('Cancel'),
+            ),
+            material.TextButton(
+              onPressed: () => Navigator.pop(dialog, true),
+              child: const material.Text('Continue'),
+            ),
+          ],
+        ),
+      );
+    }
+    return confirmed == true;
+  }
 
   Future<void> exportBackup(BuildContext context) async {
     if (!await confirmBackup(
@@ -439,7 +443,9 @@ class _Editor extends StatelessWidget {
         try {
           await temp.writeAsBytes(bytes, flush: true);
           if (await destination.exists()) {
-            throw const FileSystemException('Backup destination already exists');
+            throw const FileSystemException(
+              'Backup destination already exists',
+            );
           }
           await temp.rename(location.path);
         } finally {
