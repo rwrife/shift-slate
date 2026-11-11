@@ -12,6 +12,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart' show SelectableText;
 import 'package:path_provider/path_provider.dart';
 
+import 'backup.dart';
 import 'planning.dart';
 import 'roster_csv.dart';
 import 'store.dart';
@@ -344,6 +345,166 @@ class _Editor extends StatelessWidget {
     );
   }
 
+  Future<bool> confirmBackup(
+    BuildContext context,
+    String title,
+    String warning,
+  ) async =>
+      (await (apple
+          ? cupertino.showCupertinoDialog<bool>(
+              context: context,
+              builder: (dialog) => cupertino.CupertinoAlertDialog(
+                title: cupertino.Text(title),
+                content: cupertino.Text(warning),
+                actions: [
+                  cupertino.CupertinoDialogAction(
+                    onPressed: () => Navigator.pop(dialog, false),
+                    child: const cupertino.Text('Cancel'),
+                  ),
+                  cupertino.CupertinoDialogAction(
+                    onPressed: () => Navigator.pop(dialog, true),
+                    child: const cupertino.Text('Continue'),
+                  ),
+                ],
+              ),
+            )
+          : windows
+          ? fluent.showDialog<bool>(
+              context: context,
+              builder: (dialog) => fluent.ContentDialog(
+                title: fluent.Text(title),
+                content: fluent.Text(warning),
+                actions: [
+                  fluent.Button(
+                    onPressed: () => Navigator.pop(dialog, false),
+                    child: const fluent.Text('Cancel'),
+                  ),
+                  fluent.Button(
+                    onPressed: () => Navigator.pop(dialog, true),
+                    child: const fluent.Text('Continue'),
+                  ),
+                ],
+              ),
+            )
+          : material.showDialog<bool>(
+              context: context,
+              builder: (dialog) => material.AlertDialog(
+                title: material.Text(title),
+                content: material.Text(warning),
+                actions: [
+                  material.TextButton(
+                    onPressed: () => Navigator.pop(dialog, false),
+                    child: const material.Text('Cancel'),
+                  ),
+                  material.TextButton(
+                    onPressed: () => Navigator.pop(dialog, true),
+                    child: const material.Text('Continue'),
+                  ),
+                ],
+              ),
+            ))) ==
+      true;
+
+  Future<void> exportBackup(BuildContext context) async {
+    if (!await confirmBackup(
+          context,
+          'Export private backup',
+          'Backup includes volunteer names and private contact notes. Review this warning before choosing where to save or share it. Anyone with the file can read it.',
+        ) ||
+        !context.mounted) {
+      return;
+    }
+    try {
+      final bytes = utf8.encode(encodeBackup(plan));
+      if (windows) {
+        final location = await getSaveLocation(
+          suggestedName: 'shift-slate-backup.json',
+          acceptedTypeGroups: [
+            const XTypeGroup(label: 'JSON', extensions: ['json']),
+          ],
+        );
+        if (location == null) return;
+        // ponytail: native save dialogs choose destination; existing files are
+        // not replaced. Add platform-specific no-replace atomic rename if backup
+        // naming must become race-proof across concurrent processes.
+        final destination = File(location.path);
+        if (await destination.exists()) {
+          throw const FileSystemException(
+            'Choose a new backup filename; existing backups are never overwritten',
+          );
+        }
+        final temp = File(
+          '${location.path}.${DateTime.now().microsecondsSinceEpoch}.tmp',
+        );
+        try {
+          await temp.writeAsBytes(bytes, flush: true);
+          if (await destination.exists()) {
+            throw const FileSystemException('Backup destination already exists');
+          }
+          await temp.rename(location.path);
+        } finally {
+          if (await temp.exists()) await temp.delete();
+        }
+      } else {
+        final box = context.findRenderObject() as RenderBox?;
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile.fromData(bytes, mimeType: 'application/json')],
+            fileNameOverrides: ['shift-slate-backup.json'],
+            sharePositionOrigin: box == null
+                ? null
+                : box.localToGlobal(Offset.zero) & box.size,
+          ),
+        );
+      }
+    } on Object catch (error) {
+      if (context.mounted) {
+        await form(context, 'Backup export failed', [text('$error')], () {});
+      }
+    }
+  }
+
+  Future<void> importBackup(BuildContext context) async {
+    try {
+      final file = await openFile(
+        acceptedTypeGroups: [
+          const XTypeGroup(
+            label: 'JSON',
+            extensions: ['json'],
+            uniformTypeIdentifiers: ['public.json'],
+          ),
+        ],
+      );
+      if (file == null) return;
+      // XFile reads picker-backed mobile URLs as well as desktop files.
+      final bytes = await file.readAsBytes();
+      if (bytes.length > 8 * 1024 * 1024) {
+        throw const FormatException('Backup too large');
+      }
+      // Entire document validates before either database or displayed plan changes.
+      final restored = decodeBackup(utf8.decode(bytes));
+      if (!context.mounted ||
+          !await confirmBackup(
+            context,
+            'Replace local plan',
+            'Replace ALL local events, shifts, assignments and private contact notes with backup data? This cannot be undone. ${restored.events.length} events, ${restored.volunteers.length} volunteers, ${restored.shifts.length} shifts.',
+          ) ||
+          !context.mounted) {
+        return;
+      }
+      update(
+        events: restored.events,
+        volunteers: restored.volunteers,
+        shifts: restored.shifts,
+        assignments: restored.assignments,
+      );
+    } on Object catch (error) {
+      if (context.mounted) {
+        await form(context, 'Backup import failed', [text('$error')], () {});
+      }
+    }
+  }
+
   Future<void> exportRoster(BuildContext context) async {
     final csv = rosterCsv(plan);
     final preview = csv.length > 2000
@@ -623,6 +784,8 @@ class _Editor extends StatelessWidget {
               ],
             ),
           button('Export roster', () => exportRoster(context)),
+          button('Export private backup', () => exportBackup(context)),
+          button('Import backup', () => importBackup(context)),
         ],
       );
       final body = wide
