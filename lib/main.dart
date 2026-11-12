@@ -151,7 +151,10 @@ class _Editor extends StatelessWidget {
           child: cupertino.Text(label),
         )
       : windows
-      ? fluent.Button(onPressed: action, child: fluent.Text(label))
+      ? MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: fluent.Button(onPressed: action, child: fluent.Text(label)),
+        )
       : material.TextButton(onPressed: action, child: material.Text(label));
   Widget field(String label, TextEditingController controller) => apple
       ? cupertino.CupertinoTextField(controller: controller, placeholder: label)
